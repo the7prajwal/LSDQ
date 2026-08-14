@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Local Document Assistant</title>
+<style>
+  :root {
+    --bg: #16181d;
+    --panel: #1e2128;
+    --sidebar: #1a1c22;
+    --border: #2c3038;
+    --text: #e8e9ec;
+    --text-dim: #8b8f98;
+    --accent: #5b8cff;
+    --accent-dim: #2a3a5c;
+    --user-bubble: #2a3a5c;
+    --bot-bubble: #24272e;
+    --danger: #e05b5b;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  #app {
+    display: flex;
+    height: 100vh;
+  }
+
+  /* ---------- SIDEBAR ---------- */
+  #sidebar {
+    width: 250px;
+    flex-shrink: 0;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  #new-chat-btn {
+    margin: 12px;
+    padding: 10px 12px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #new-chat-btn:hover { filter: brightness(1.15); }
+  #chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .chat-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    gap: 6px;
+  }
+  .chat-item:hover { background: var(--panel); color: var(--text); }
+  .chat-item.active { background: var(--accent-dim); color: var(--text); }
+  .chat-item .title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .chat-item .delete-btn {
+    opacity: 0;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    line-height: 1;
+  }
+  .chat-item:hover .delete-btn { opacity: 1; }
+  .chat-item .delete-btn:hover { color: var(--danger); background: rgba(224,91,91,0.12); }
+  #sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .switch {
+    position: relative;
+    width: 34px;
+    height: 19px;
+    flex-shrink: 0;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--border);
+    border-radius: 999px;
+    transition: 0.15s;
+  }
+  .slider:before {
+    content: "";
+    position: absolute;
+    height: 14px; width: 14px;
+    left: 3px; bottom: 2.5px;
+    background: var(--text-dim);
+    border-radius: 50%;
+    transition: 0.15s;
+  }
+  input:checked + .slider { background: var(--accent-dim); border: 1px solid var(--accent); }
+  input:checked + .slider:before { transform: translateX(15px); background: var(--accent); }
+
+  /* ---------- MAIN ---------- */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  header .sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  #status-pill {
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+  #status-pill.busy #status-dot { background: #e0a53d; animation: pulse 1.2s infinite; }
+  #status-pill.ready #status-dot { background: #4caf6c; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+  #rescan-btn {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  #rescan-btn:hover { filter: brightness(1.15); }
+  #rescan-btn:disabled { opacity: 0.5; cursor: default; }
+
+  #add-docs-btn, #open-folder-btn {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  #add-docs-btn:hover, #open-folder-btn:hover { filter: brightness(1.15); }
+ 
+
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .msg {
+    max-width: 70%;
+    padding: 12px 15px;
+    border-radius: 12px;
+    line-height: 1.5;
+    font-size: 14px;
+    white-space: pre-wrap;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--user-bubble);
+    border-bottom-right-radius: 3px;
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: var(--bot-bubble);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 3px;
+  }
+  .sources {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .sources div { margin-top: 3px; }
+  body.hide-citations .sources { display: none; }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    max-width: 420px;
+    line-height: 1.6;
+  }
+
+  #input-row {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+  }
+  #question {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 14px;
+    resize: none;
+    font-family: inherit;
+  }
+  #question:focus { outline: none; border-color: var(--accent); }
+  #send-btn {
+    background: var(--accent);
+    color: #0e0f12;
+    border: none;
+    border-radius: 8px;
+    padding: 0 22px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #send-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .typing {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
+  }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-dim);
+    animation: bounce 1s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-4px);} }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="sidebar">
+    <button id="new-chat-btn">+ New chat</button>
+    <div id="chat-list"></div>
+    <div id="sidebar-footer">
+      <div class="toggle-row">
+        <span>Hide citations</span>
+        <label class="switch">
+          <input type="checkbox" id="hide-citations-toggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <header>
+      <div>
+        <h1>Local Document Assistant</h1>
+        <div class="sub" id="doc-info">Loading status…</div>
+      </div>
+      <div style="display:flex; align-items:center;">
+        <div id="status-pill"><div id="status-dot"></div><span id="status-text">checking…</span></div>
+        <button id="add-docs-btn">+ Add Documents</button>
+        <button id="open-folder-btn">Open Documents Folder</button>
+        <button id="rescan-btn">Re-scan documents</button>
+      </div>
+    </header>
+
+    <div id="chat">
+      <div class="empty-state" id="empty-state">
+        Ask a question about the documents in your <code>documents</code> folder.<br>
+        Everything runs locally — no data leaves this machine.
+      </div>
+    </div>
+
+    <div id="input-row">
+      <textarea id="question" rows="1" placeholder="Ask something about your documents…"></textarea>
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const questionInput = document.getElementById('question');
+const sendBtn = document.getElementById('send-btn');
+const rescanBtn = document.getElementById('rescan-btn');
+const statusPill = document.getElementById('status-pill');
+const statusText = document.getElementById('status-text');
+const docInfo = document.getElementById('doc-info');
+const newChatBtn = document.getElementById('new-chat-btn');
+const chatListEl = document.getElementById('chat-list');
+const hideCitationsToggle = document.getElementById('hide-citations-toggle');
+const addDocsBtn = document.getElementById('add-docs-btn');
+const openFolderBtn = document.getElementById('open-folder-btn');
+
+addDocsBtn.addEventListener('click', async () => {
+  if (!window.pywebview) return; // pywebview API not ready yet
+  addDocsBtn.disabled = true;
+  try {
+    const result = await window.pywebview.api.pick_and_add_documents();
+    if (result.ok) {
+      await fetch('/api/ingest', { method: 'POST' });
+    }
+  } finally {
+    addDocsBtn.disabled = false;
+  }
+});
+
+openFolderBtn.addEventListener('click', () => {
+  if (!window.pywebview) return;
+  window.pywebview.api.open_documents_folder();
+});
+let currentChatId = null;
+
+// ---------- Citations toggle (persisted locally on this machine) ----------
+if (localStorage.getItem('hideCitations') === 'true') {
+  document.body.classList.add('hide-citations');
+  hideCitationsToggle.checked = true;
+}
+hideCitationsToggle.addEventListener('change', () => {
+  document.body.classList.toggle('hide-citations', hideCitationsToggle.checked);
+  localStorage.setItem('hideCitations', hideCitationsToggle.checked);
+});
+
+// ---------- Message rendering ----------
+function clearChatPane() {
+  chatEl.innerHTML = '';
+}
+
+function showEmptyState() {
+  clearChatPane();
+  const el = document.createElement('div');
+  el.className = 'empty-state';
+  el.id = 'empty-state';
+  el.innerHTML = `Ask a question about the documents in your <code>documents</code> folder.<br>
+    Everything runs locally — no data leaves this machine.`;
+  chatEl.appendChild(el);
+}
+
+function addMessage(role, text, sources) {
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg ' + role;
+  bubble.textContent = text;
+
+  if (sources && sources.length) {
+    const src = document.createElement('div');
+    src.className = 'sources';
+    src.innerHTML = '<b>Sources</b>';
+    sources.forEach(s => {
+      const d = document.createElement('div');
+      d.textContent = '• ' + s;
+      src.appendChild(d);
+    });
+    bubble.appendChild(src);
+  }
+  chatEl.appendChild(bubble);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+function addTyping() {
+  const bubble = document.createElement('div');
+  bubble.className = 'msg bot typing';
+  bubble.innerHTML = '<span></span><span></span><span></span>';
+  chatEl.appendChild(bubble);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+// ---------- Chat list (sidebar) ----------
+async function refreshChatList() {
+  try {
+    const res = await fetch('/api/chats');
+    const data = await res.json();
+    if (!data.ok) return;
+
+    chatListEl.innerHTML = '';
+    data.chats.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (c.id === currentChatId ? ' active' : '');
+      item.dataset.id = c.id;
+
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = c.title;
+      item.appendChild(title);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete-btn';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Delete chat';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteChat(c.id);
+      });
+      item.appendChild(delBtn);
+
+      item.addEventListener('click', () => loadChat(c.id));
+      chatListEl.appendChild(item);
+    });
+  } catch (e) { /* server not ready yet */ }
+}
+
+async function createNewChat() {
+  const res = await fetch('/api/chats', { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    currentChatId = data.chat.id;
+    showEmptyState();
+    await refreshChatList();
+    questionInput.focus();
+  }
+}
+
+async function loadChat(chatId) {
+  const res = await fetch('/api/chats/' + chatId);
+  const data = await res.json();
+  if (!data.ok) return;
+
+  currentChatId = chatId;
+  clearChatPane();
+  if (data.chat.messages.length === 0) {
+    showEmptyState();
+  } else {
+    data.chat.messages.forEach(m => {
+      addMessage(m.role, m.content, m.sources);
+    });
+  }
+  await refreshChatList();
+}
+
+async function deleteChat(chatId) {
+  if (!confirm('Delete this chat? This cannot be undone.')) return;
+
+  await fetch('/api/chats/' + chatId, { method: 'DELETE' });
+
+  if (chatId === currentChatId) {
+    // pick another chat, or create a fresh one if none left
+    const res = await fetch('/api/chats');
+    const data = await res.json();
+    if (data.ok && data.chats.length > 0) {
+      await loadChat(data.chats[0].id);
+    } else {
+      await createNewChat();
+    }
+  } else {
+    await refreshChatList();
+  }
+}
+
+// ---------- Sending questions ----------
+async function sendQuestion() {
+  const question = questionInput.value.trim();
+  if (!question || !currentChatId) return;
+
+  addMessage('user', question);
+  questionInput.value = '';
+  sendBtn.disabled = true;
+  const typingEl = addTyping();
+
+  try {
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, chat_id: currentChatId })
+    });
+    const data = await res.json();
+    typingEl.remove();
+    if (data.ok) {
+      addMessage('bot', data.answer, data.sources);
+      refreshChatList(); // title may have just been auto-set
+    } else {
+      addMessage('bot', 'Error: ' + (data.error || 'unknown error'));
+    }
+  } catch (err) {
+    typingEl.remove();
+    addMessage('bot', 'Could not reach the local server: ' + err.message);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+sendBtn.addEventListener('click', sendQuestion);
+questionInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendQuestion();
+  }
+});
+newChatBtn.addEventListener('click', createNewChat);
+
+// ---------- Status polling ----------
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    docInfo.textContent = `${data.chunk_count} chunks indexed — folder: ${data.docs_folder}`;
+    if (data.state === 'ingesting') {
+      statusPill.className = 'busy';
+      statusText.textContent = data.message || 'Ingesting…';
+      rescanBtn.disabled = true;
+    } else {
+      statusPill.className = 'ready';
+      statusText.textContent = 'Ready';
+      rescanBtn.disabled = false;
+    }
+  } catch (e) {
+    statusText.textContent = 'Offline';
+  }
+}
+
+rescanBtn.addEventListener('click', async () => {
+  rescanBtn.disabled = true;
+  await fetch('/api/ingest', { method: 'POST' });
+});
+
+// ---------- Boot ----------
+async function init() {
+  await pollStatus();
+  const res = await fetch('/api/chats');
+  const data = await res.json();
+  if (data.ok && data.chats.length > 0) {
+    await loadChat(data.chats[0].id);
+  } else {
+    await createNewChat();
+  }
+  setInterval(pollStatus, 1500);
+}
+
+init();
+</script>
+</body>
+</html>

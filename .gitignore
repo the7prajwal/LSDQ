@@ -1,0 +1,21 @@
+# Virtual environment
+venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Build artifacts (regenerated via build_exe.bat / PyInstaller / Inno Setup)
+build/
+dist/
+installer_output/
+Output/
+installer/
+
+# Runtime / user data — created by running the app, not part of source
+vector_db/
+chats.json
+documents/
+
+# Large binary — download separately, document source in DEPLOYMENT.md
+OllamaSetup.exe

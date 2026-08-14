@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    background: #0d0d12; color: #e8e8ec; font-family: 'Segoe UI', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh; margin: 0;
+  }
+  .card {
+    background: #16161d; border: 1px solid #2a2a35; border-radius: 12px;
+    padding: 40px; width: 440px; text-align: center;
+  }
+  h2 { margin-top: 0; }
+  .status-line {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #232330; font-size: 14px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; margin-right: 8px; }
+  .dot.ok { background: #4ade80; }
+  .dot.busy { background: #facc15; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  progress { width: 100%; height: 6px; margin-top: 16px; accent-color: #6366f1; }
+  #log { font-size: 12px; color: #888; margin-top: 12px; height: 20px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Setting up LSDQ</h2>
+    <p style="color:#999; font-size:14px;">First launch only — this won't happen again.</p>
+
+    <div class="status-line"><span><span class="dot" id="dot-ollama"></span>Ollama engine</span><span id="txt-ollama">Checking...</span></div>
+    <div class="status-line"><span><span class="dot" id="dot-llm"></span>llama3.1:8b</span><span id="txt-llm">Waiting</span></div>
+    <div class="status-line"><span><span class="dot" id="dot-embed"></span>nomic-embed-text</span><span id="txt-embed">Waiting</span></div>
+
+    <progress id="progress" max="100" value="0"></progress>
+    <div id="log">Starting...</div>
+  </div>
+
+<script>
+async function checkStatus() {
+  const res = await fetch("/setup-status");
+  const data = await res.json();
+
+  document.getElementById("dot-ollama").className = "dot " + (data.ollama_running ? "ok" : "busy");
+  document.getElementById("txt-ollama").innerText = data.ollama_running ? "Running" : "Not detected";
+
+  if (!data.ollama_running) {
+    document.getElementById("log").innerText = "Please install & start Ollama, then relaunch LSDQ.";
+    return;
+  }
+
+  if (data.missing_models.length === 0) {
+    document.getElementById("dot-llm").className = "dot ok";
+    document.getElementById("dot-embed").className = "dot ok";
+    document.getElementById("txt-llm").innerText = "Ready";
+    document.getElementById("txt-embed").innerText = "Ready";
+    document.getElementById("log").innerText = "All set — launching LSDQ...";
+    setTimeout(() => window.location.href = "/", 1000);
+    return;
+  }
+
+  for (const model of data.missing_models) {
+    const dotId = model.includes("nomic") ? "dot-embed" : "dot-llm";
+    const txtId = model.includes("nomic") ? "txt-embed" : "txt-llm";
+    document.getElementById(dotId).className = "dot busy";
+    document.getElementById(txtId).innerText = "Downloading...";
+
+    await new Promise((resolve) => {
+      const source = new EventSource("/pull-model/" + encodeURIComponent(model));
+      source.onmessage = (e) => {
+        if (e.data === "DONE") {
+          document.getElementById(dotId).className = "dot ok";
+          document.getElementById(txtId).innerText = "Ready";
+          source.close();
+          resolve();
+        } else {
+          document.getElementById("log").innerText = e.data.slice(0, 80);
+        }
+      };
+    });
+  }
+
+  checkStatus();
+}
+
+checkStatus();
+</script>
+</body>
+</html>
