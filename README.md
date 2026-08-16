@@ -23,14 +23,14 @@ Most RAG tools assume you're fine sending document chunks to a cloud LLM. LSDQ d
 ## Screenshots
 
 ### Chat with your documents, with cited sources
-![Chat interface with source citations]
+Chat interface with source citations
 <img width="800" height="600" alt="chat" src="https://github.com/user-attachments/assets/79a9c5a6-5086-4437-ad9b-49809d73a539" />
 
 
 *Ask a question and get an answer grounded in your own documents — with exact source paragraphs cited, so you can verify every claim.*
 
 ### Multi-format document support
-![Document indexing]
+Document indexing
 <img width="800" height="600" alt="doc" src="https://github.com/user-attachments/assets/2fe87194-ea00-4a0c-b301-6e31ac6ad8bc" />
 
 
